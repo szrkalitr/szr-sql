@@ -1,0 +1,2 @@
+# szr-sql
+Sqli tool
